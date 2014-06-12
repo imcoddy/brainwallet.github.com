@@ -186,11 +186,8 @@
 
     function generate() {
         var hash_str = pad($('#hash').val(), 64, '0');
-
         var hash = Crypto.util.hexToBytes(hash_str);
-
         eckey = new Bitcoin.ECKey(hash);
-
         gen_eckey = eckey;
 
         try {
@@ -346,7 +343,6 @@
     function genRandomPass() {
         // chosen by fair dice roll
         // guaranted to be random
-        $('#pass').val('correct horse battery staple');
         $('#from_pass').button('toggle');
         $('#pass').focus();
         gen_from = 'pass';
@@ -357,10 +353,11 @@
 
     // --- converter ---
 
-    var from = 'hex';
+    var from = '';
     var to = 'hex';
 
     function update_enc_from() {
+        $(this).addClass('active');
         from = $(this).attr('id').substring(5);
         translate();
     }
@@ -411,6 +408,10 @@
       return !/[^01 \r\n]+/i.test(str);
     }
 
+    function isDec(str) {
+      return !/[^0123456789]+/i.test(str);
+    }
+
     function issubset(a, ssv) {
         var b = ssv.trim().split(' ');
         for (var i = 0; i < b.length; i++) {
@@ -428,10 +429,10 @@
     function autodetect(str) {
         var enc = [];
         var bstr = str.replace(/[ :,\n]+/g,'').trim();
-
         if ( isBin(bstr) )
-          enc.push('bin');
-
+            enc.push('bin');
+        if (isDec(bstr) )
+            enc.push('dec');
         if (isHex(bstr))
             enc.push('hex');
         if (isBase58(bstr)) {
@@ -460,20 +461,24 @@
         return enc;
     }
 
-    function update_toolbar(enc) {
+    function update_toolbar(enc_list) {
         var reselect = false;
+
         $.each($('#enc_from').children(), function() {
-            var id = $(this).children().attr('id').substring(5);
-            var disabled = (enc && enc.indexOf(id) == -1);
+            var enc = $(this).children().attr('id').substring(5);
+            var disabled = (enc_list && enc_list.indexOf(enc) == -1);
             if (disabled && $(this).hasClass('active')) {
                 $(this).removeClass('active');
                 reselect = true;
             }
             $(this).attr('disabled', disabled);
         });
-        if (enc && enc.length > 0 && reselect) {
-            $('#from_' + enc[0]).click();//addClass('active');
-            from = enc[0];
+
+        if (enc_list && enc_list.length > 0) {
+            if (reselect || from=='') {
+              from = enc_list[0];
+              $('#from_' + from).click();
+            }
         }
     }
 
@@ -502,7 +507,6 @@
         for (var i in lines) {
           if (lines[i].trim(' ').split(' ').length==9)
             res.push(lines[i]);
-          console.log(lines[i], res);
         }
         return res.join('\n');
     }
@@ -520,19 +524,52 @@
 
     function fromBin(str)
     {
-      var arr = str.split(' ');
+      var arr = str.split(/[\r\n ]+/);
       var res = [];
       for (var i=0; i<arr.length; i++)
       {
-        var chunks = arr[i].match(/.{1,8}/g);
+        var bstr = arr[i];
+        var s = ('0000000'+bstr).slice(-Math.ceil(bstr.length/8)*8); // needs padding
+        var chunks = s.match(/.{1,8}/g);
          for (var j=0;j<chunks.length;j++)
           res.push(parseInt(chunks[j], 2));
       }
       return res;
     }
 
+    function fromDec(str)
+    {
+        var h = new BigInteger(str).toString(16);
+        return Crypto.util.hexToBytes(h.length%2?'0'+h:h);
+    }
+
+    function toDec(bytes)
+    {
+        var h = Crypto.util.bytesToHex(bytes);
+        return new BigInteger(h,16).toString(10);
+    }
+
     function enct(id) {
         return $('#from_'+id).parent().text();
+    }
+
+    function pad_array(bytes, n)
+    {
+      if (n==0) // remove padding
+      {
+        var res = bytes.slice(0);
+        while (res.length>1 && res[0]==0)
+          res.shift();
+        return res;
+      }
+
+      // align to n bytes
+      var len = bytes.length;
+      var padding = Math.ceil(len/n)*n - len;
+      var res = bytes.slice(0);
+      for (i=0;i<padding;i++)
+        res.unshift(0);
+      return res;
     }
 
     function translate() {
@@ -569,7 +606,7 @@
             } else if (from == 'base58') {
                 bytes = Bitcoin.Base58.decode(bstr);
             } else if (from == 'hex') {
-                bytes = Crypto.util.hexToBytes(bstr);
+                bytes = Crypto.util.hexToBytes(bstr.length%2?'0'+bstr:bstr); // needs padding
             } else if (from == 'rfc1751') {
                 try { bytes = english_to_key(str); } catch (err) { type = ' ' + err; bytes = []; };
             } else if (from == 'mnemonic') {
@@ -582,6 +619,8 @@
                 bytes = fromBin(str);
             } else if (from == 'easy16') {
                 bytes = fromEasy16(str);
+            } else if (from == 'dec') {
+                bytes = fromDec(bstr);
             }
 
             var ver = '';
@@ -597,9 +636,9 @@
             } else if (to == 'text') {
                 text = bytesToString(bytes);
             } else if (to == 'rfc1751') {
-                text = key_to_english(bytes);
+                text = key_to_english(pad_array(bytes,8));
             } else if (to == 'mnemonic') {
-                text = mn_encode(Crypto.util.bytesToHex(bytes));
+                text = mn_encode(Crypto.util.bytesToHex(pad_array(bytes,4)));
             } else if (to == 'base64') {
                 text = Crypto.util.bytesToBase64(bytes);
             } else if (to == 'rot13') {
@@ -607,7 +646,9 @@
             } else if (to == 'bin') {
                 text = toBin(bytes);
             } else if (to == 'easy16') {
-                text = toEasy16(bytes);
+                text = toEasy16(pad_array(bytes,32));
+            } else if (to == 'dec') {
+                text = toDec(bytes);
             }
         }
 
@@ -737,7 +778,7 @@
 
                 var lines = str.split('\n');
                 var text = lines.join(' ');
-                var words = text.split(' ');
+                var words = text.split(/\s+/);
                 if (words.length!=9*2 && words.length!=9*4)
                 {
                   $('#chList').text('');
