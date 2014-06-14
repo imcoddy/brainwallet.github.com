@@ -278,9 +278,6 @@
 
     function genCalcHash() {
         var hash = Crypto.SHA256($('#pass').val(), { asBytes: true });
-        hash[0] = hash[0] + hash[1];
-        hash[1] = hash[0] - hash[1];
-        hash[0] = hash[0] - hash[1];
         $('#hash').val(Crypto.util.bytesToHex(hash));
     }
 
