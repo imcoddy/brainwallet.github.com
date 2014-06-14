@@ -256,6 +256,13 @@
         $('#genAddrURL').attr('href', ADDRESS_URL_PREFIX+'/address/'+addr);
         $('#genAddrURL').attr('title', addr);
 
+        var keyQRCode = qrcode(3, 'L');
+        var text = $('#sec').val();
+        text = text.replace(/^[\s\u3000]+|[\s\u3000]+$/g, '');
+        keyQRCode.addData(text);
+        keyQRCode.make();
+
+        $('#genKeyQR').html(keyQRCode.createImgTag(4));
         // NMC fix
         if (ADDRESS_URL_PREFIX.indexOf('explorer.dot-bit.org')>=0 )
           $('#genAddrURL').attr('href', ADDRESS_URL_PREFIX+'/a/'+addr);
@@ -1580,5 +1587,8 @@
 
         $('#crCurrency ul li a').on('click', crChange);
 
+        $('#toggleKeyCode').on('click', function() {
+            $('#genKeyQR').slideToggle();
+        });
     });
 })(jQuery);
