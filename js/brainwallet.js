@@ -1738,6 +1738,13 @@
 
         $('#toggleKeyCode').on('click', function() {
             $('#genKeyQR').slideToggle();
+            $('#sec').closest('.form-group').slideToggle();
+        });
+
+        $('#togglePass').on('click', function(){
+            var type = $('#pass').attr('type');
+            type = (type === 'text' ? 'password' : 'text');
+            $('#pass').attr('type', type);
         });
     });
 })(jQuery);
